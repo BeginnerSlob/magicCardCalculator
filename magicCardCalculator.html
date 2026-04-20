@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -308,10 +308,13 @@
         let petAccelerationPercent = 0;
         let furnaceAccelerationPercent = 0;
 
-        // 长按相关变量
-        let longPressTimer = null;
-        let longPressThreshold = 500; // 500毫秒阈值
-        let isLongPressing = false; // 标记是否正在进行长按
+        // 触摸事件相关变量
+        let touchStartTime = 0;
+        let touchMoveDetected = false;
+        let touchEndHandler = null;
+
+        // 长按阈值（毫秒）
+        const LONG_PRESS_THRESHOLD = 500;
 
         // 转义XML特殊字符
         function escapeXmlSpecialChars(text) {
@@ -931,28 +934,8 @@
                     
                     cardElement.appendChild(quantityBadge);
                     
-                    // 添加点击事件（左键选中，右键排除/恢复）
-                    cardElement.addEventListener('click', function(e) {
-                        // 如果是长按刚结束，则忽略此次点击
-                        if (isLongPressing) {
-                            isLongPressing = false;
-                            return;
-                        }
-                        
-                        // 左键点击：选中卡片
-                        toggleCardSelection(card.id);
-                    });
-                    
-                    // 添加右键点击事件（排除/恢复卡片）
-                    cardElement.addEventListener('contextmenu', function(e) {
-                        e.preventDefault(); // 阻止默认右键菜单
-                        
-                        // 切换排除状态
-                        toggleCardExclusion(card.id);
-                    });
-                    
-                    // 添加长按事件处理
-                    addLongPressSupport(cardElement, card.id);
+                    // 添加触摸事件处理
+                    addTouchSupport(cardElement, card.id);
                     
                     container.appendChild(cardElement);
                 });
@@ -965,55 +948,66 @@
             displayStats(themeId);
         }
 
-        // 添加长按支持
-        function addLongPressSupport(element, cardId) {
+        // 添加触摸支持（优化版）
+        function addTouchSupport(element, cardId) {
             // 触摸开始事件
             element.addEventListener('touchstart', function(e) {
                 // 阻止默认行为
                 e.preventDefault();
                 
-                // 标记当前不是长按
-                isLongPressing = false;
+                // 记录触摸开始时间
+                touchStartTime = Date.now();
                 
-                // 清除之前的长按计时器
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
+                // 重置移动标志
+                touchMoveDetected = false;
+                
+                // 如果之前有延时处理函数，取消它
+                if (touchEndHandler) {
+                    clearTimeout(touchEndHandler);
+                    touchEndHandler = null;
                 }
-                
-                // 设置新的长按计时器
-                longPressTimer = setTimeout(function() {
-                    // 标记正在进行长按
-                    isLongPressing = true;
-                    
-                    // 执行排除/恢复操作
-                    toggleCardExclusion(cardId);
-                }, longPressThreshold);
             });
-            
+
+            // 触摸移动事件
+            element.addEventListener('touchmove', function(e) {
+                // 检测到移动，标记为滑动
+                touchMoveDetected = true;
+            });
+
             // 触摸结束事件
             element.addEventListener('touchend', function(e) {
-                // 清除长按计时器
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
+                // 阻止默认行为
+                e.preventDefault();
+                
+                // 计算触摸持续时间
+                const touchDuration = Date.now() - touchStartTime;
+                
+                // 如果检测到移动，则不执行任何操作
+                if (touchMoveDetected) {
+                    return;
                 }
-            });
-            
-            // 触摸移动事件（如果手指移动则取消长按）
-            element.addEventListener('touchmove', function(e) {
-                // 清除长按计时器
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
+                
+                // 延迟执行，以区分短按和长按
+                touchEndHandler = setTimeout(function() {
+                    if (touchDuration < LONG_PRESS_THRESHOLD) {
+                        // 短按：执行左键行为（选中卡片）
+                        toggleCardSelection(cardId);
+                    } else {
+                        // 长按：执行右键行为（排除/恢复卡片）
+                        toggleCardExclusion(cardId);
+                    }
+                    
+                    // 清除处理器引用
+                    touchEndHandler = null;
+                }, 50); // 延迟50毫秒以确保区分
             });
             
             // 触摸取消事件（例如系统弹窗等）
             element.addEventListener('touchcancel', function(e) {
-                // 清除长按计时器
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
+                // 清除处理器
+                if (touchEndHandler) {
+                    clearTimeout(touchEndHandler);
+                    touchEndHandler = null;
                 }
             });
         }
