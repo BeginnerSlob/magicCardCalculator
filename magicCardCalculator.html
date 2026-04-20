@@ -1,4 +1,4 @@
-<!DOCTYPE html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -934,8 +934,8 @@
                     
                     cardElement.appendChild(quantityBadge);
                     
-                    // 添加触摸事件处理
-                    addTouchSupport(cardElement, card.id);
+                    // 添加鼠标和触摸事件处理
+                    addEventListeners(cardElement, card.id);
                     
                     container.appendChild(cardElement);
                 });
@@ -948,9 +948,23 @@
             displayStats(themeId);
         }
 
-        // 添加触摸支持（优化版）
-        function addTouchSupport(element, cardId) {
-            // 触摸开始事件
+        // 添加事件监听器（支持鼠标和触摸事件）
+        function addEventListeners(element, cardId) {
+            // 鼠标左键点击（桌面端）
+            element.addEventListener('click', function(e) {
+                e.preventDefault(); // 防止默认行为
+                toggleCardSelection(cardId);
+            });
+
+            // 鼠标右键点击（桌面端）- 直接执行排除/恢复操作
+            element.addEventListener('contextmenu', function(e) {
+                e.preventDefault(); // 阻止默认右键菜单
+                
+                // 直接执行排除/恢复操作
+                toggleCardExclusion(cardId);
+            });
+
+            // 触摸开始事件（移动端）
             element.addEventListener('touchstart', function(e) {
                 // 阻止默认行为
                 e.preventDefault();
