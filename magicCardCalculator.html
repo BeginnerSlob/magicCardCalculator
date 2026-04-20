@@ -1002,13 +1002,14 @@
                 if (touchMoveDetected) {
                     return;
                 }
+                
+                // 如果之前有延时处理函数，取消它
+                if (touchEndHandler)
+                    clearTimeout(touchEndHandler);
 
                 // 延迟执行，以区分短按和长按
                 touchEndHandler = setTimeout(function() {
                     toggleCardSelection(cardId);
-                    
-                    // 清除处理器引用
-                    touchEndHandler = null;
                 }, 50); // 延迟50毫秒以确保区分
             });
             
