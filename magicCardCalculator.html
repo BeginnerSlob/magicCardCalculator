@@ -9,6 +9,7 @@
             font-family: Arial, sans-serif;
             margin: 20px;
             background-color: #f5f5f5;
+            touch-action: manipulation; /* 优化触摸体验 */
         }
         .container {
             max-width: 1200px;
@@ -84,6 +85,12 @@
             font-style: italic;
             color: #666;
         }
+        .auto-fetch-button:active, .file-input-button:active {
+            background-color: #0056b3;
+        }
+        .auto-fetch-button:active {
+            background-color: #1e7e34;
+        }
         .card-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -99,6 +106,10 @@
             background-color: #fff;
             border-radius: 5px;
             position: relative;
+            user-select: none; /* 防止长按时选中文本 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
         .card-item:hover {
             transform: translateY(-3px);
@@ -231,6 +242,19 @@
             font-size: 14px;
             color: #666;
         }
+        .long-press-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            z-index: 1000;
+            font-size: 16px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -250,15 +274,15 @@
             </div>
             
             <div class="control-group">
-                <label for="themeSelect">选择套卡:</label>
+                <label for="themeSelect">选择主题:</label>
                 <select id="themeSelect" onchange="onThemeSelectChange()">
                     <option value="">-- 请选择 --</option>
                 </select>
                 
-                <label for="themeInput">或输入套卡ID/名称:</label>
-                <input type="text" id="themeInput" placeholder="输入套卡ID或名称">
+                <label for="themeInput">或输入主题ID/名称:</label>
+                <input type="text" id="themeInput" placeholder="输入主题ID或名称">
                 
-                <button onclick="loadTheme()">加载套卡</button>
+                <button onclick="loadTheme()">加载主题</button>
             </div>
 
             <div class="control-group">
@@ -283,6 +307,8 @@
         <div id="cardsDisplay"></div>
         <div id="combInfo"></div>
         <div id="statsDisplay"></div>
+        
+        <div id="longPressIndicator" class="long-press-indicator">长按生效</div>
     </div>
 
     <script>
@@ -296,6 +322,11 @@
         // 新增：加速百分比
         let petAccelerationPercent = 0;
         let furnaceAccelerationPercent = 0;
+
+        // 长按相关变量
+        let longPressTimer = null;
+        let longPressThreshold = 500; // 500毫秒阈值
+        let currentLongPressedElement = null;
 
         // 转义XML特殊字符
         function escapeXmlSpecialChars(text) {
@@ -361,7 +392,7 @@
                         parseXmlData(xmlDoc);
                     }
                     
-                    // 初始化套卡选择器
+                    // 初始化主题选择器
                     initThemeSelector();
                     
                     document.getElementById('loadingIndicator').style.display = 'none';
@@ -412,7 +443,7 @@
                 // 解析数据
                 parseXmlData(xmlDoc);
                 
-                // 初始化套卡选择器
+                // 初始化主题选择器
                 initThemeSelector();
                 
                 // 更新状态
@@ -531,12 +562,12 @@
             cardQuantities = {};
             excludedCards.clear();
 
-            // 解析套卡
+            // 解析主题
             const themeElements = xmlDoc.getElementsByTagName('theme');
             for (let i = 0; i < themeElements.length; i++) {
                 const theme = themeElements[i];
                 const id = theme.getAttribute('id');
-                // 对套卡名称进行解转义
+                // 对主题名称进行解转义
                 const name = unescapeXmlSpecialChars(theme.getAttribute('name') || '');
                 themes[id] = { id, name };
             }
@@ -670,19 +701,19 @@
             }
         }
 
-        // 初始化套卡选择器
+        // 初始化主题选择器
         function initThemeSelector() {
             const themeSelect = document.getElementById('themeSelect');
             if (themeSelect) {
                 themeSelect.innerHTML = '<option value="">-- 请选择 --</option>';
                 
-                // 按套卡ID排序
+                // 按主题ID排序
                 const sortedThemeIds = Object.keys(themes).sort((a, b) => parseInt(a) - parseInt(b));
                 
                 for (const themeId of sortedThemeIds) {
                     const option = document.createElement('option');
                     option.value = themeId;
-                    // 对套卡名称进行HTML转义以安全显示
+                    // 对主题名称进行HTML转义以安全显示
                     option.textContent = `${themes[themeId].name} (${themeId})`;
                     themeSelect.appendChild(option);
                 }
@@ -696,7 +727,7 @@
             if (btn) {
                 btn.textContent = sortOrderIsAscending ? '切换为微端顺序' : '切换为H5顺序';
             }
-            // 重新加载当前套卡以应用新排序
+            // 重新加载当前主题以应用新排序
             loadTheme();
         }
 
@@ -710,11 +741,11 @@
             // 更新输入框显示值（以防输入超出范围）
             document.getElementById('petAccel').value = petAccelerationPercent;
             document.getElementById('furnaceAccel').value = furnaceAccelerationPercent;
-            // 重新加载当前套卡以应用新时间
+            // 重新加载当前主题以应用新时间
             loadTheme();
         }
 
-        // 下拉框选择套卡时的处理函数
+        // 下拉框选择主题时的处理函数
         function onThemeSelectChange() {
             const themeInput = document.getElementById('themeInput');
             if (themeInput) {
@@ -722,11 +753,11 @@
                 themeInput.value = '';
             }
             
-            // 触发加载套卡
+            // 触发加载主题
             loadTheme();
         }
 
-        // 根据ID或名称查找套卡
+        // 根据ID或名称查找主题
         function findThemeByIdOrName(input) {
             // 首先尝试精确匹配ID
             if (themes[input]) {
@@ -744,7 +775,7 @@
             return null;
         }
 
-        // 加载套卡
+        // 加载主题
         function loadTheme() {
             let themeInputValue = document.getElementById('themeInput');
             if (!themeInputValue) {
@@ -764,15 +795,15 @@
             }
             
             if (!themeInputValue) {
-                showError('请输入套卡ID或名称，或从下拉框选择套卡');
+                showError('请输入主题ID或名称，或从下拉框选择主题');
                 return;
             }
             
-            // 查找套卡ID
+            // 查找主题ID
             const foundThemeId = findThemeByIdOrName(themeInputValue);
             
             if (!foundThemeId) {
-                showError(`未找到匹配的套卡: "${themeInputValue}"`);
+                showError(`未找到匹配的主题: "${themeInputValue}"`);
                 return;
             }
             
@@ -782,11 +813,11 @@
                 themeSelect.value = foundThemeId;
             }
             
-            // 如果找到套卡，继续加载
+            // 如果找到主题，继续加载
             const themeId = foundThemeId;
             
             if (!themes[themeId]) {
-                showError('套卡ID不存在');
+                showError('主题ID不存在');
                 return;
             }
             
@@ -803,7 +834,7 @@
         function displayTotalTime(themeId) {
             let totalTime = 0;
             
-            // 遍历该套卡下的所有卡片
+            // 遍历该主题下的所有卡片
             for (const cardId in cards) {
                 if (cards[cardId].themeId == themeId && !excludedCards.has(cardId)) {
                     // 如果卡片有合成时间
@@ -821,16 +852,16 @@
             const totalTimeDisplay = document.getElementById('totalTimeDisplay');
             if (totalTimeDisplay) {
                 totalTimeDisplay.innerHTML = `
-                    <div>该套卡合成总时间: ${secondsToHMS(totalTime)}</div>
+                    <div>该主题合成总时间: ${secondsToHMS(totalTime)}</div>
                     <div style="font-size: 14px; margin-top: 5px; color: #666;">(加速: 灵宠${petAccelerationPercent}%, 卡炉${furnaceAccelerationPercent}%)</div>
                 `;
                 totalTimeDisplay.style.display = 'block';
             }
         }
 
-        // 显示特定套卡的卡片
+        // 显示特定主题的卡片
         function displayCardsForTheme(themeId) {
-            // 过滤出该套卡的卡片
+            // 过滤出该主题的卡片
             const themeCards = [];
             for (const cardId in cards) {
                 if (cards[cardId].themeId == themeId) {
@@ -932,36 +963,11 @@
                         e.preventDefault(); // 阻止默认右键菜单
                         
                         // 切换排除状态
-                        if (excludedCards.has(card.id)) {
-                            // 恢复卡片
-                            excludedCards.delete(card.id);
-                            cardElement.classList.remove('excluded');
-                            
-                            // 更新徽章
-                            quantityBadge.className = 'quantity-badge';
-                            quantityBadge.textContent = cardQuantities[card.id] || 1;
-                        } else {
-                            // 排除卡片
-                            excludedCards.add(card.id);
-                            cardElement.classList.add('excluded');
-                            
-                            // 更新徽章
-                            quantityBadge.className = 'quantity-badge excluded-badge';
-                            quantityBadge.textContent = '0';
-                        }
-                        
-                        // 重新计算数量
-                        recalculateCardQuantities();
-                        
-                        // 重新加载套卡以更新显示
-                        loadTheme();
-                        
-                        // 如果当前有选中的卡片，重新显示其组合信息
-                        const selectedCard = document.querySelector('.card-item.selected');
-                        if (selectedCard) {
-                            showCombInfo(selectedCard.dataset.cardId);
-                        }
+                        toggleCardExclusion(card.id);
                     });
+                    
+                    // 添加长按事件处理
+                    addLongPressSupport(cardElement, card.id);
                     
                     container.appendChild(cardElement);
                 });
@@ -972,6 +978,108 @@
             
             // 显示统计信息
             displayStats(themeId);
+        }
+
+        // 添加长按支持
+        function addLongPressSupport(element, cardId) {
+            // 触摸开始事件
+            element.addEventListener('touchstart', function(e) {
+                // 阻止默认行为
+                e.preventDefault();
+                
+                // 清除之前的长按计时器
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                }
+                
+                // 设置新的长按计时器
+                longPressTimer = setTimeout(function() {
+                    // 显示长按指示器
+                    const indicator = document.getElementById('longPressIndicator');
+                    if (indicator) {
+                        indicator.style.display = 'block';
+                        setTimeout(function() {
+                            indicator.style.display = 'none';
+                        }, 500);
+                    }
+                    
+                    // 执行排除/恢复操作
+                    toggleCardExclusion(cardId);
+                    
+                    // 记录当前长按的元素
+                    currentLongPressedElement = element;
+                }, longPressThreshold);
+            });
+            
+            // 触摸结束事件
+            element.addEventListener('touchend', function(e) {
+                // 清除长按计时器
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+            
+            // 触摸移动事件（如果手指移动则取消长按）
+            element.addEventListener('touchmove', function(e) {
+                // 清除长按计时器
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+            
+            // 触摸取消事件（例如系统弹窗等）
+            element.addEventListener('touchcancel', function(e) {
+                // 清除长按计时器
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            });
+        }
+
+        // 切换卡片排除状态
+        function toggleCardExclusion(cardId) {
+            const cardElement = document.querySelector(`.card-item[data-card-id="${cardId}"]`);
+            
+            if (!cardElement) return;
+            
+            if (excludedCards.has(cardId)) {
+                // 恢复卡片
+                excludedCards.delete(cardId);
+                cardElement.classList.remove('excluded');
+                
+                // 更新徽章
+                const quantityBadge = cardElement.querySelector('.quantity-badge');
+                if (quantityBadge) {
+                    quantityBadge.className = 'quantity-badge';
+                    quantityBadge.textContent = cardQuantities[cardId] || 1;
+                }
+            } else {
+                // 排除卡片
+                excludedCards.add(cardId);
+                cardElement.classList.add('excluded');
+                
+                // 更新徽章
+                const quantityBadge = cardElement.querySelector('.quantity-badge');
+                if (quantityBadge) {
+                    quantityBadge.className = 'quantity-badge excluded-badge';
+                    quantityBadge.textContent = '0';
+                }
+            }
+            
+            // 重新计算数量
+            recalculateCardQuantities();
+            
+            // 重新加载主题以更新显示
+            loadTheme();
+            
+            // 如果当前有选中的卡片，重新显示其组合信息
+            const selectedCard = document.querySelector('.card-item.selected');
+            if (selectedCard) {
+                showCombInfo(selectedCard.dataset.cardId);
+            }
         }
 
         // 显示统计信息
