@@ -242,19 +242,6 @@
             font-size: 14px;
             color: #666;
         }
-        .long-press-indicator {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            z-index: 1000;
-            font-size: 16px;
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -307,8 +294,6 @@
         <div id="cardsDisplay"></div>
         <div id="combInfo"></div>
         <div id="statsDisplay"></div>
-        
-        <div id="longPressIndicator" class="long-press-indicator">长按生效</div>
     </div>
 
     <script>
@@ -326,7 +311,7 @@
         // 长按相关变量
         let longPressTimer = null;
         let longPressThreshold = 500; // 500毫秒阈值
-        let currentLongPressedElement = null;
+        let isLongPressing = false; // 标记是否正在进行长按
 
         // 转义XML特殊字符
         function escapeXmlSpecialChars(text) {
@@ -948,9 +933,9 @@
                     
                     // 添加点击事件（左键选中，右键排除/恢复）
                     cardElement.addEventListener('click', function(e) {
-                        // 如果是右键点击，阻止默认行为
-                        if (e.button === 2) {
-                            e.preventDefault();
+                        // 如果是长按刚结束，则忽略此次点击
+                        if (isLongPressing) {
+                            isLongPressing = false;
                             return;
                         }
                         
@@ -987,6 +972,9 @@
                 // 阻止默认行为
                 e.preventDefault();
                 
+                // 标记当前不是长按
+                isLongPressing = false;
+                
                 // 清除之前的长按计时器
                 if (longPressTimer) {
                     clearTimeout(longPressTimer);
@@ -994,20 +982,11 @@
                 
                 // 设置新的长按计时器
                 longPressTimer = setTimeout(function() {
-                    // 显示长按指示器
-                    const indicator = document.getElementById('longPressIndicator');
-                    if (indicator) {
-                        indicator.style.display = 'block';
-                        setTimeout(function() {
-                            indicator.style.display = 'none';
-                        }, 500);
-                    }
+                    // 标记正在进行长按
+                    isLongPressing = true;
                     
                     // 执行排除/恢复操作
                     toggleCardExclusion(cardId);
-                    
-                    // 记录当前长按的元素
-                    currentLongPressedElement = element;
                 }, longPressThreshold);
             });
             
