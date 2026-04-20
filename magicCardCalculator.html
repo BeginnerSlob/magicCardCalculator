@@ -968,18 +968,23 @@
             element.addEventListener('touchstart', function(e) {
                 // 阻止默认行为
                 e.preventDefault();
-                
-                // 记录触摸开始时间
-                touchStartTime = Date.now();
-                
+
                 // 重置移动标志
                 touchMoveDetected = false;
                 
                 // 如果之前有延时处理函数，取消它
-                if (touchEndHandler) {
+                if (touchEndHandler)
                     clearTimeout(touchEndHandler);
+                
+                touchEndHandler = setTimeout(function() {
+                    // 视为取消
+                    touchMoveDetected = true;
+
+                    toggleCardExclusion(cardId);
+
+                    // 清除处理器引用
                     touchEndHandler = null;
-                }
+                }, LONG_PRESS_THRESHOLD); // 延迟一旦视为长按则
             });
 
             // 触摸移动事件
@@ -993,23 +998,14 @@
                 // 阻止默认行为
                 e.preventDefault();
                 
-                // 计算触摸持续时间
-                const touchDuration = Date.now() - touchStartTime;
-                
                 // 如果检测到移动，则不执行任何操作
                 if (touchMoveDetected) {
                     return;
                 }
-                
+
                 // 延迟执行，以区分短按和长按
                 touchEndHandler = setTimeout(function() {
-                    if (touchDuration < LONG_PRESS_THRESHOLD) {
-                        // 短按：执行左键行为（选中卡片）
-                        toggleCardSelection(cardId);
-                    } else {
-                        // 长按：执行右键行为（排除/恢复卡片）
-                        toggleCardExclusion(cardId);
-                    }
+                    toggleCardSelection(cardId);
                     
                     // 清除处理器引用
                     touchEndHandler = null;
