@@ -1,0 +1,423 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔法卡片套卡与卡牌检索器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f2f7fb;
+            color: #222;
+        }
+        .container {
+            max-width: 1080px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.08);
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 2rem;
+            color: #2a4d69;
+        }
+        p.description {
+            color: #555;
+            line-height: 1.6;
+        }
+        .controls, .search-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .controls {
+            align-items: center;
+            justify-content: space-between;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .control-group label {
+            font-weight: bold;
+            min-width: 90px;
+        }
+        .control-group input[type=file], .control-group button, .search-box input, .search-box button {
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #b8c0cc;
+            font-size: 0.96rem;
+        }
+        .control-group button, .search-box button {
+            background-color: #2a7ae2;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .control-group button:hover, .search-box button:hover {
+            background-color: #185abc;
+        }
+        .file-name {
+            color: #666;
+            font-style: italic;
+        }
+        .fetch-status {
+            display: inline-block;
+            margin-top: 8px;
+            color: #666;
+            font-size: 0.95rem;
+        }
+        .search-panel {
+            gap: 24px;
+        }
+        .result-item-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .card-result-image {
+            width: 84px;
+            height: 84px;
+            object-fit: contain;
+            border-radius: 10px;
+            border: 1px solid #d8e3ed;
+            background-color: #f8fbff;
+            flex-shrink: 0;
+        }
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+            background-color: #f8fbff;
+            border: 1px solid #d8e3ed;
+            border-radius: 12px;
+            padding: 18px;
+        }
+        .search-box h2 {
+            margin-top: 0;
+            color: #1f426b;
+        }
+        .search-box p {
+            margin: 0 0 12px;
+            color: #555;
+        }
+        .search-box input {
+            width: calc(100% - 124px);
+            max-width: 100%;
+        }
+        .search-box button {
+            margin-top: 12px;
+        }
+        .results {
+            margin-top: 18px;
+        }
+        .result-count {
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #1f4a7d;
+        }
+        .result-item {
+            border: 1px solid #e1e8f3;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+            background-color: #ffffff;
+        }
+        .result-title {
+            font-weight: bold;
+            margin-bottom: 6px;
+            color: #263248;
+        }
+        .info {
+            padding: 14px;
+            background-color: #eef5ff;
+            border: 1px solid #cddbf2;
+            border-radius: 10px;
+            color: #2f4f7c;
+        }
+        @media (max-width: 800px) {
+            .search-box input {
+                width: 100%;
+            }
+            .controls, .search-panel {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>魔法卡片套卡与卡牌检索器</h1>
+        <p class="description">请选择本地 <code>card_info_v3.xml</code> 文件进行加载，然后可以分别按卡片或套卡进行搜索。</p>
+        <div class="controls">
+            <div class="control-group">
+                <label for="xmlFile">XML 文件</label>
+                <input type="file" id="xmlFile" accept=".xml">
+            </div>
+            <div class="control-group">
+                <button id="loadXmlBtn" type="button">加载 XML</button>
+                <button id="autoLoadBtn" type="button">自动读取</button>
+                <span id="fileName" class="file-name">未选择文件</span>
+            </div>
+            <div class="control-group">
+                <span id="fetchStatus" class="fetch-status">默认读取同目录 card_info_v3.xml</span>
+            </div>
+        </div>
+
+        <div class="search-panel">
+            <div class="search-box">
+                <h2>按卡片检索</h2>
+                <p>输入卡片名称、价格或 ID，支持名称模糊搜索，价格/ID 精确匹配。</p>
+                <input id="cardQuery" type="text" placeholder="例如：露剂 / 120 / 25088">
+                <button id="searchCardBtn" type="button">开始检索</button>
+                <div id="cardResults" class="results"></div>
+            </div>
+            <div class="search-box">
+                <h2>按套卡检索</h2>
+                <p>输入套卡名称、ID 或价格（会在套卡的所有字段中搜索匹配项）。</p>
+                <input id="themeQuery" type="text" placeholder="例如：时尚女套装 / 45 / 49">
+                <button id="searchThemeBtn" type="button">开始检索</button>
+                <div id="themeResults" class="results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let cards = [];
+        let themes = [];
+        let themeById = {};
+        let xmlLoaded = false;
+        const xmlFileInput = document.getElementById('xmlFile');
+        const fileNameSpan = document.getElementById('fileName');
+        const fetchStatus = document.getElementById('fetchStatus');
+        const loadXmlBtn = document.getElementById('loadXmlBtn');
+        const autoLoadBtn = document.getElementById('autoLoadBtn');
+        const cardQuery = document.getElementById('cardQuery');
+        const themeQuery = document.getElementById('themeQuery');
+        const cardResults = document.getElementById('cardResults');
+        const themeResults = document.getElementById('themeResults');
+
+        xmlFileInput.addEventListener('change', updateFileName);
+        loadXmlBtn.addEventListener('click', loadXmlFile);
+        autoLoadBtn.addEventListener('click', fetchLatestXml);
+        document.getElementById('searchCardBtn').addEventListener('click', searchCard);
+        document.getElementById('searchThemeBtn').addEventListener('click', searchTheme);
+
+        function updateFileName() {
+            const file = xmlFileInput.files[0];
+            fileNameSpan.textContent = file ? file.name : '未选择文件';
+        }
+
+        function loadXmlFile() {
+            const file = xmlFileInput.files[0];
+            if (!file) {
+                alert('请先选择 card_info_v3.xml 文件');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                parseXml(reader.result);
+            };
+            reader.onerror = () => {
+                cardResults.innerHTML = '<div class="info">读取 XML 文件失败。</div>';
+                themeResults.innerHTML = '';
+            };
+            reader.readAsText(file, 'utf-8');
+        }
+
+        async function fetchLatestXml() {
+            fetchStatus.textContent = '正在尝试读取本地 card_info_v3.xml...';
+            fetchStatus.style.color = '#007bff';
+            try {
+                let xmlText = await fetchFileText('./card_info_v3.xml');
+                if (!xmlText) {
+                    fetchStatus.textContent = '未找到本地文件，正在尝试通过互联网下载...';
+                    xmlText = await fetchFileText('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://appimg2.qq.com/card/mk/card_info_v3.xml'));
+                }
+                if (!xmlText) {
+                    throw new Error('本地文件和远程下载均失败');
+                }
+                parseXml(xmlText);
+                fileNameSpan.textContent = 'card_info_v3.xml (自动读取)';
+                fetchStatus.textContent = '已成功加载 XML 文件';
+                fetchStatus.style.color = '#28a745';
+            } catch (error) {
+                fetchStatus.textContent = '自动读取失败';
+                fetchStatus.style.color = '#dc3545';
+                cardResults.innerHTML = `<div class="info">自动读取失败: ${escapeHtml(error.message)}。请手动选择 XML 文件。</div>`;
+                themeResults.innerHTML = '';
+                console.error(error);
+            }
+        }
+
+        async function fetchFileText(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    return null;
+                }
+                return await response.text();
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function parseXml(xmlText) {
+            xmlText = sanitizeXmlText(xmlText);
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+            const parseError = xmlDoc.querySelector('parsererror');
+            if (parseError) {
+                cardResults.innerHTML = '<div class="info">XML 解析失败，请检查文件格式。</div>';
+                themeResults.innerHTML = '';
+                xmlLoaded = false;
+                return;
+            }
+
+            themes = [];
+            cards = [];
+            themeById = {};
+
+            xmlDoc.querySelectorAll('theme').forEach(node => {
+                const theme = {
+                    id: node.getAttribute('id') || '',
+                    name: node.getAttribute('name') || '',
+                    diff: node.getAttribute('diff') || '',
+                    time: node.getAttribute('time') || '',
+                    gift: node.getAttribute('gift') || '',
+                    version: node.getAttribute('version') || '',
+                    type: node.getAttribute('type') || '',
+                    color: node.getAttribute('color') || '',
+                    extra: {}
+                };
+                Array.from(node.attributes).forEach(attr => {
+                    if (!['id','name','diff','time','gift','version','type','color'].includes(attr.name)) {
+                        theme.extra[attr.name] = attr.value;
+                    }
+                });
+                themes.push(theme);
+                themeById[theme.id] = theme;
+            });
+
+            xmlDoc.querySelectorAll('card').forEach(node => {
+                cards.push({
+                    id: node.getAttribute('id') || '',
+                    theme_id: node.getAttribute('theme_id') || '',
+                    name: node.getAttribute('name') || '',
+                    price: node.getAttribute('price') || '',
+                    version: node.getAttribute('version') || '',
+                    itemno: node.getAttribute('itemno') || '',
+                    bflash: node.getAttribute('bflash') || ''
+                });
+            });
+
+            xmlLoaded = true;
+            cardResults.innerHTML = `<div class="info">已加载 XML，读取卡片 ${cards.length} 条，套卡 ${themes.length} 条。</div>`;
+            themeResults.innerHTML = '';
+        }
+
+        function normalizeInput(value) {
+            return value.trim();
+        }
+
+        function sanitizeXmlText(xmlText) {
+            return xmlText.replace(/&(?!(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9A-Fa-f]+);)/g, '&amp;');
+        }
+
+        function isNumeric(value) {
+            return /^[0-9]+$/.test(value.trim());
+        }
+
+        function searchCard() {
+            if (!xmlLoaded) {
+                alert('请先加载 XML 文件');
+                return;
+            }
+            const query = normalizeInput(cardQuery.value);
+            if (!query) {
+                cardResults.innerHTML = '<div class="info">请输入卡片名称、价格或 ID。</div>';
+                return;
+            }
+            const isNum = isNumeric(query);
+            const lower = query.toLowerCase();
+            const matches = cards.filter(card => {
+                if (isNum) {
+                    if (card.id === query || card.price === query) {
+                        return true;
+                    }
+                }
+                return card.name.toLowerCase().includes(lower);
+            });
+            if (!matches.length) {
+                cardResults.innerHTML = '<div class="info">未找到匹配的卡片。</div>';
+                return;
+            }
+            const rows = matches.map(card => {
+                const theme = themeById[card.theme_id];
+                const imagesrc = 'https://appimg2.qq.com/card/img/card/' + encodeURIComponent(card.id);
+                return `<div class="result-item"><div class="result-title">${escapeHtml(card.name)} (ID: ${escapeHtml(card.id)})</div><div class="result-item-content"><img class="card-result-image" src="${imagesrc}" alt="${escapeHtml(card.name)}"><div><div>价格: ${escapeHtml(card.price)}</div><div>套卡ID: ${escapeHtml(card.theme_id)}</div><div>套卡名称: ${escapeHtml(theme ? theme.name : '未知')}</div></div></div></div>`;
+            });
+            cardResults.innerHTML = `<div class="result-count">找到 ${matches.length} 条卡片</div>${rows.join('')}`;
+        }
+
+        function searchTheme() {
+            if (!xmlLoaded) {
+                alert('请先加载 XML 文件');
+                return;
+            }
+            const query = normalizeInput(themeQuery.value);
+            if (!query) {
+                themeResults.innerHTML = '<div class="info">请输入套卡名称或 ID。</div>';
+                return;
+            }
+            const isNum = isNumeric(query);
+            const lower = query.toLowerCase();
+            const matches = themes.filter(theme => {
+                if (isNum && theme.id === query) {
+                    return true;
+                }
+                if (theme.name.toLowerCase().includes(lower)) {
+                    return true;
+                }
+                return Object.values(theme.extra).some(value => value.toLowerCase().includes(lower));
+            });
+            if (!matches.length) {
+                themeResults.innerHTML = '<div class="info">未找到匹配的套卡。</div>';
+                return;
+            }
+            if (matches.length === 1) {
+                const theme = matches[0];
+                const attrs = [
+                    `ID: ${escapeHtml(theme.id)}`,
+                    `名称: ${escapeHtml(theme.name)}`,
+                    `星级: ${escapeHtml(theme.diff)}`,
+                ];
+                Object.entries(theme.extra).forEach(([key, val]) => {
+                    attrs.push(`${escapeHtml(key)}: ${escapeHtml(val)}`);
+                });
+                themeResults.innerHTML = `<div class="result-count">找到 1 个套卡，显示详细信息：</div><div class="result-item"><div class="result-title">套卡详情</div><div>${attrs.join('</div><div>')}</div></div>`;
+                return;
+            }
+            const rows = matches.map(theme => {
+                return `<div class="result-item"><div class="result-title">${escapeHtml(theme.name)}</div><div>ID: ${escapeHtml(theme.id)} | 类别: ${escapeHtml(theme.version)}}</div></div>`;
+            });
+            themeResults.innerHTML = `<div class="result-count">找到 ${matches.length} 个套卡，显示名称列表：</div>${rows.join('')}`;
+        }
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+    </script>
+</body>
+</html>
