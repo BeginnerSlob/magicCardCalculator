@@ -925,8 +925,11 @@
                         const time = secondsToHMS(effectiveTime);
                         timeInfo = `<div class="time-info">合成时间: ${time}</div>`;
                     }
+
+                    let imagesrc = 'https://appimg2.qq.com/card/img/card/' + card.id;
                     
                     cardElement.innerHTML = `
+                        <div><img src="${imagesrc}" alt="${card.name}"></div>
                         <div>${card.name}</div>
                         <div style="font-size: 12px; color: #666;">ID: ${card.id}</div>
                         ${timeInfo}
